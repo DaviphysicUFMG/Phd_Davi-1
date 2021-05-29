@@ -311,164 +311,356 @@ end module mtmod
   !-----------------------------------------------------------------!
 
 module var_annealing
-    real(8), parameter :: pi = 4.0d0*atan(1.0d0)
-    integer :: Ns,N_viz,N_mc
-    integer, dimension(:), allocatable :: S,Nviz,jviz
-    real(8), dimension(:), allocatable :: Aij,Bi
-    real(8), dimension(:), allocatable :: rx,ry,mx,my
-    real(8) :: E_tot,Temp,beta
-    character(600) :: dir1,dir2
+   real(8), parameter :: pi = 4.0d0*atan(1.0d0)
+   integer :: seed
+   integer :: Ns,N_viz,N_mc,N_temp
+   integer, dimension(:), allocatable :: S,Nviz,jviz
+   real(8), dimension(:), allocatable :: Aij,Bi
+   real(8), dimension(:), allocatable :: rx,ry,mx,my
+   real(8) :: Ti,Tf,dT
+   real(8) :: E_tot,Temp,beta
+   character(600) :: dir1,dir2
 
-    integer, parameter :: iunit_conf = 10, iunit_en = 20
+   integer, parameter :: iunit_conf = 10, iunit_en = 20
 end module var_annealing
 
+subroutine inicial
+   use var_annealing, only : N_temp,Ti,Tf,dT,iunit_en
+   implicit none
 
+   ! Ler arquivos de input !
+   
+   call ler_input(1)
+   call ler_config(2)
+   call ler_Aij(3)
+   call ler_Nviz(4)
+   
+   ! Iniciar Campos !
+
+   call inicia_Bi
+
+   ! Iniciar Diretórios !
+
+   call diretorios
+
+   ! Arquivos de OutPut !
+
+   call En_save(iunit_en,0)
+
+   ! Cálculos Gerais !
+
+   dT = (Tf - Ti)/real(N_temp-1,8)
+
+   return
+end subroutine inicial
+
+subroutine ler_input(iunit)
+   use mtmod, only : getseed,sgrnd
+   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf,seed
+   implicit none
+   integer, intent(in) :: iunit
+   real(8) :: a
+
+   open(unit=iunit,file='input.dat',status='old',action='read')
+   read(iunit,*) Ns
+   read(iunit,*) N_viz
+   read(iunit,*) a
+   read(iunit,*) a
+   read(iunit,*) a
+   read(iunit,*) a
+   read(iunit,*) N_mc
+   read(iunit,*) N_temp
+   read(iunit,*) Ti
+   read(iunit,*) Tf
+   close(iunit)
+
+   seed = getseed()
+   call sgrnd(seed)
+
+   return
+end subroutine ler_input
+
+subroutine ler_config(iunit)
+   use var_annealing, only : Ns,S,rx,ry,mx,my
+   implicit none
+   integer, intent(in) :: iunit
+   integer :: i
+   real(8) :: a
+
+   allocate(S(Ns),rx(Ns),ry(Ns),mx(Ns),my(Ns))
+
+   open(unit=iunit,file='config0.xyz',status='old',action='read')
+   read(iunit,*) i
+   read(iunit,*) 
+   do i = 1,Ns
+      read(iunit,*) rx(i),ry(i),mx(i),my(i),a
+   end do
+   close(iunit)
+
+   S = 1
+
+   return
+end subroutine ler_config
+
+subroutine ler_Aij(iunit)
+   use var_annealing, only : N_viz,Aij,jviz
+   implicit none
+   integer, intent(in) :: iunit
+   integer :: i
+
+   allocate(Aij(N_viz),jviz(N_viz))
+   open(unit=iunit,file='Aij.dat',status='old',action='read')
+   do i = 1,N_viz
+      read(iunit,*) jviz(i),Aij(i)
+   end do
+   close(iunit)
+
+   return
+end subroutine ler_Aij
+
+subroutine ler_Nviz(iunit)
+   use var_annealing, only : Ns,Nviz
+   implicit none
+   integer, intent(in) :: iunit
+   integer :: i
+
+   allocate(Nviz(0:Ns))
+   open(unit=iunit,file='Nviz.dat',status='old',action='read')
+
+   Nviz(0) = 0
+   do i = 1,Ns
+      read(iunit,*) Nviz(i)
+   end do
+   close(iunit)
+
+   return
+end subroutine ler_Nviz
 
 subroutine inicia_Bi
-    use var_annealing, only : Ns,Nviz,jviz,Aij,Bi,S
-    implicit none
-    integer :: i,j,k
+   use var_annealing, only : Ns,Nviz,jviz,Aij,Bi,S,E_tot
+   implicit none
+   integer :: i,j,k
 
-    allocate(Bi(Ns))
+   allocate(Bi(Ns))
 
-    do i = 1,Ns
-        do k = Nviz(i-1)+1,Nviz(i)
-            j = jviz(k)
-            Bi(i) = Bi(i) + S(j)*Aij(k)
-        end do
-    end do
+   Bi(:) = 0.0d0
+   do i = 1,Ns
+      do k = Nviz(i-1)+1,Nviz(i)
+         j = jviz(k)
+         Bi(i) = Bi(i) + S(j)*Aij(k)
+      end do
+   end do
 
-    return
+   E_tot = 0.0d0
+   do i = 1,Ns
+      E_tot = E_tot + S(i)*Bi(i)
+   end do
+   E_tot = 0.5d0*E_tot
+
+   print*, E_tot
+
+   return
 end subroutine inicia_Bi
 
+subroutine diretorios
+   use var_annealing
+   implicit none
+   integer :: i
+   logical :: direx
+
+   dir1 = 'Resultados/'
+   inquire(file=dir1,exist=direx)
+   if (direx .eqv. .false.) then
+      call system("mkdir " // trim(dir1))
+   end if
+
+   direx = .true.
+   i = 0
+   do while(direx .eqv. .true.)
+      i = i + 1
+      write(dir2,"('Resultados/Simula_',I4.4,'/')") i
+      inquire(file=dir2,exist=direx)
+   end do
+   call system("mkdir " // trim(dir2))
+
+   return
+end subroutine diretorios
+
 subroutine update(i,dE)
-    use var_annealing, only : Nviz,jviz,Aij,Bi,S,E_tot
-    implicit none
-    integer, intent(in) :: i
-    real(8), intent(in) :: dE
-    integer :: j,k
-    real(8) :: dBi
+   use var_annealing, only : Nviz,jviz,Aij,Bi,S,E_tot
+   implicit none
+   integer, intent(in) :: i
+   real(8), intent(in) :: dE
+   integer :: j,k
+   real(8) :: dBi
 
-    do k = 1,Nviz(i-1)+1,Nviz(i)
-        j = jviz(k)
-        dBi = -2.0d0*S(i)*Aij(k)
-        Bi(j) = Bi(j) + dBi
-    end do
+   do k = 1,Nviz(i-1)+1,Nviz(i)
+      j = jviz(k)
+      dBi = -2.0d0*S(i)*Aij(k)
+      Bi(j) = Bi(j) + dBi
+   end do
 
-    S(i) = -S(i)
-    E_tot = E_tot + dE
-    return
+   S(i) = -S(i)
+   E_tot = E_tot + dE
+   
+   return
 end subroutine update
 
 subroutine Monte_Carlo(temps)
-    use var_annealing, only : N_mc,beta,iunit_conf,iunit_en
-    implicit none
-    real(8), intent(in) :: temps
-    integer :: imc
+   use var_annealing, only : Ns,N_mc,beta,iunit_conf,iunit_en,E_tot
+   implicit none
+   real(8), intent(in) :: temps
+   integer :: imc
+   real(8) :: E1,E2
 
-    beta = 1.0d0/temps
+   beta = 1.0d0/temps
 
-    ! Termalização !
-    do imc = 1,N_mc
-        call metropolis
-    end do
+   ! Termalização !
+   do imc = 1,N_mc
+      call metropolis
+   end do
 
-    ! Amostragem !
-    call config_S(iunit_conf,0)
-    call En_save(iunit_en,1)
+   ! Amostragem !
+   call config_S(iunit_conf,0)
+   call En_save(iunit_en,1)
 
-    do imc = 1,N_mc
-        call metropolis
-        call samples(temps)
-    end do
+   E1 = 0.0d0
+   E2 = 0.0d0
 
-    call config_S(iunit_conf,3)
+   do imc = 1,N_mc
+      call metropolis
+      call samples(temps)
+      E1 = E1 + E_tot
+      E2 = E2 + E_tot**2
+
+      if (mod(imc,10)==0) then
+         call config_S(40,2)
+      end if
+   end do
+
+   E1 = E1/real(N_mc)
+   E2 = E2/real(N_mc)
+
+   write(50,*) temps,E1/real(Ns,8),(E2 - E1**2)/real(Ns,8)*beta**2
+
+   call config_S(iunit_conf,3)
     
-    return
+   return
 end subroutine Monte_Carlo
 
 subroutine metropolis
-    use var_annealing, only : Ns,Bi,S,beta
-    use mtmod, only : igrnd,grnd
-    implicit none
-    integer :: i,im
-    real(8) :: dE
+   use var_annealing, only : Ns,Bi,S,beta
+   use mtmod, only : igrnd,grnd
+   implicit none
+   integer :: i,im
+   real(8) :: dE
 
-    do im = 1,Ns
-        i = igrnd(1,Ns)
-        dE = -2.0d0*S(i)*Bi(i)
-        if (grnd() .lt. exp(-beta*dE)) then
-            call update(i,dE)
-        end if
-    end do
+   do im = 1,Ns
+      i = igrnd(1,Ns)
+      dE = -2.0d0*S(i)*Bi(i)
+      if (grnd() .lt. exp(-beta*dE)) then
+         call update(i,dE)
+      end if
+   end do
 
-    return
+   return
 end subroutine metropolis
 
 subroutine samples(temps)
-    use var_annealing, only : temp,iunit_conf,iunit_en
-    implicit none
-    real(8), intent(in) :: temps
+   use var_annealing, only : temp,iunit_conf,iunit_en
+   implicit none
+   real(8), intent(in) :: temps
 
-    temp = temps
+   temp = temps
 
-    call config_S(iunit_conf,1)
-    call En_save(iunit_en,2)
+   call config_S(iunit_conf,1)
+   call En_save(iunit_en,2)
 
-    return
+   return
 end subroutine samples
 
 subroutine config_S(iunit,flag)
-    use var_annealing, only : Ns,N_mc,rx,ry,mx,my,S,temp,dir2
-    implicit none
-    integer, intent(in) :: iunit,flag
-    integer :: i
-    character(60) :: nome
+   use var_annealing, only : Ns,N_mc,rx,ry,mx,my,S,temp,dir2
+   implicit none
+   integer, intent(in) :: iunit,flag
+   integer :: i
+   character(60) :: nome
 
-    if (flag == 0) then
-        ! Inicia a configuração !
-        write(nome,"('config_temp_',f8.5,'.dat')") temp
-        open(unit=iunit,file=trim(dir2) // trim(nome))
+   if (flag == 0) then
+      ! Inicia a configuração !
+      write(nome,"('config_temp_',f8.2,'.dat')") temp
+      open(unit=iunit,file=trim(dir2) // trim(nome))
 
-        write(iunit,*) Ns,N_mc
-        do i = 1,Ns
-            write(iunit,*) rx(i),ry(i),mx(i),my(i)
-        end do
-    else if (flag == 1) then
-        do i = 1,Ns
-            write(iunit,*) (S(i)+1)/2
-        end do
-    else if (flag == 2) then
-        write(iunit,*) Ns
-        write(iunit,*) ' '
-        do i = 1,Ns
-            write(iunit,"(4(2x,f10.5))") rx(i),ry(i),S(i)*mx(i),S(i)*my(i)
-        end do
-    else
-        close(iunit)
-    end if
+      write(iunit,*) Ns,N_mc
+      do i = 1,Ns
+         write(iunit,*) rx(i),ry(i),mx(i),my(i)
+      end do
+   else if (flag == 1) then
+      do i = 1,Ns
+         write(iunit,*) (S(i)+1)/2
+      end do
+   else if (flag == 2) then
+      write(iunit,*) Ns
+      write(iunit,*) ' '
+      do i = 1,Ns
+         write(iunit,"(4(2x,f10.5))") rx(i),ry(i),S(i)*mx(i),S(i)*my(i)
+      end do
+   else if (flag == 3) then
+      call flush()
+      close(iunit)
+   end if
 
-    return
+   return
 end subroutine config_S
 
 subroutine En_save(iunit,flag)
-    use var_annealing
-    implicit none
-    integer, intent(in) :: iunit,flag
+   use var_annealing, only : Ns,N_mc,temp,E_tot,dir2
+   implicit none
+   integer, intent(in) :: iunit,flag
 
-    if (flag == 0) then
-        open(unit=iunit,file=trim(dir2) // trim("energia.dat"))
-        write(iunit) Ns,N_mc
-    else if (flag == 1) then
-        write(iunit,*) temp
-    else if (flag == 2) then
-        write(iunit,*) E_tot
-    else
-        close(iunit)
-    end if
+   if (flag == 0) then
+      open(unit=iunit,file=(trim(dir2) // 'energia.dat'))
+      write(iunit,*) Ns,N_mc
+   else if (flag == 1) then
+      write(iunit,*) temp
+   else if (flag == 2) then
+      write(iunit,*) E_tot
+   else if (flag == 3) then
+      call flush()
+      close(iunit)
+   end if
 
-    return
+   return
 end subroutine En_save
+
+subroutine Annealing
+   use var_annealing, only : N_temp,Ti,dT,temp
+   implicit none
+   integer :: i_temp
+   real(8) :: temps
+
+   open(40,file='config.xyz')
+   open(50,file='en_med.dat')
+
+   do i_temp = 1,N_temp
+      temps = Ti + (i_temp-1)*dT
+      temp = temps
+      call Monte_Carlo(temps)
+   end do
+
+   close(40)
+   close(50)
+
+   return
+end subroutine Annealing
+
+program main
+   
+   call inicial
+
+   call Annealing
+
+end program main
 
 
 

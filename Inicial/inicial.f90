@@ -24,7 +24,7 @@ subroutine parametros_iniciais
     read(*,*) a
     print*, "--------------------------------"
     print*, "A simulação é com ou sem contorno?"
-    print*, "Com contorno = 1; Sem contorno = 0;"
+    print*, "Com contorno = 1; Sem contorno = 2; Ising = 3"
     read(*,*) contorno
     print*, "Ângulo de rotação do spin:"
     read(*,*) theta
@@ -64,9 +64,11 @@ subroutine unit_cel
     if (contorno == 1) then
         call Aij_com_contorno_x
         print*, "Rede com condições de contorno gerada."
-    else
+    else if (contorno == 2) then
         call Aij_sem_contorno_x
         print*, "Rede sem condições de contorno gerada."
+    else if (contorno == 3) then
+        call Aij_com_contorno_Ising
     end if
 
 end subroutine unit_cel
@@ -468,6 +470,45 @@ subroutine Aij_com_contorno_x
     close(12)
     return
 end subroutine Aij_com_contorno_x
+
+subroutine Aij_com_contorno_Ising
+    use var_inicial, only : Ns,N_viz,rx,ry,Lx,Ly,rc,a,dir2
+    implicit none
+    integer :: i,j,ni,nj,nc
+    real(8) :: x,y,soma,Aij
+
+    open(11,file=trim(dir2) // 'Aij.dat')
+    open(12,file=trim(dir2) // 'Nviz.dat')
+
+    N_viz = 0
+    nc = 1
+    rc = 1.d0*a
+    do i = 1,Ns
+        soma = 0.0d0
+        do ni = -nc,nc
+            do nj = -nc,nc
+                do j = 1,Ns
+                    x = rx(i) - rx(j) + real(ni*Lx,8)
+                    y = ry(i) - ry(j) + real(nj*Ly,8)
+                    if ((sqrt(x*x+y*y) <= rc).and.(sqrt(x*x+y*y)>0.1d0)) then
+                        N_viz = N_viz + 1
+                        Aij = 1.0d0
+                        soma = soma + Aij
+                        !Aij(N_viz) = (D1 - D2)*dij**3
+                        !jviz(N_viz) = j
+                        write(11,*) j,Aij
+                    end if
+                end do
+            end do
+        end do
+        write(12,*) N_viz
+    end do
+
+
+    close(11)
+    close(12)
+    return
+end subroutine Aij_com_contorno_Ising
 
 subroutine output
     use var_inicial
