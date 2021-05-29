@@ -431,7 +431,7 @@ subroutine Aij_com_contorno_x
 
     N_viz = 0
     nc = 3
-    rc = 200.0d0*a
+    rc = 20.0d0*a
     Aijmin = 10000000.0d0
     Aijmax = -10000000.0d0
     do i = 1,Ns
@@ -472,18 +472,19 @@ subroutine Aij_com_contorno_x
 end subroutine Aij_com_contorno_x
 
 subroutine Aij_com_contorno_Ising
-    use var_inicial, only : Ns,N_viz,rx,ry,Lx,Ly,rc,dir2
+    use var_inicial, only : Ns,N_viz,rx,ry,Lx,Ly,rc,a,dir2
     implicit none
     integer :: i,j,ni,nj,nc
-    real(8) :: x,y,Aij
+    real(8) :: x,y,soma,Aij
 
     open(11,file=trim(dir2) // 'Aij.dat')
     open(12,file=trim(dir2) // 'Nviz.dat')
 
     N_viz = 0
-    nc = 0
-    rc = 1.d0
+    nc = 1
+    rc = 1.d0*a
     do i = 1,Ns
+        soma = 0.0d0
         do ni = -nc,nc
             do nj = -nc,nc
                 do j = 1,Ns
@@ -492,6 +493,9 @@ subroutine Aij_com_contorno_Ising
                     if ((sqrt(x*x+y*y) <= rc).and.(sqrt(x*x+y*y)>0.1d0)) then
                         N_viz = N_viz + 1
                         Aij = 1.0d0
+                        soma = soma + Aij
+                        !Aij(N_viz) = (D1 - D2)*dij**3
+                        !jviz(N_viz) = j
                         write(11,*) j,Aij
                     end if
                 end do
