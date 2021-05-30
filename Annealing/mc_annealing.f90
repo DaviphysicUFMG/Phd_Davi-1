@@ -494,7 +494,7 @@ subroutine update(i,dE)
    integer :: j,k
    real(8) :: dBi
 
-   do k = 1,Nviz(i-1)+1,Nviz(i)
+   do k = Nviz(i-1)+1,Nviz(i)
       j = jviz(k)
       dBi = -2.0d0*S(i)*Aij(k)
       Bi(j) = Bi(j) + dBi
