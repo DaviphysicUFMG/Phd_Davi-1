@@ -3,7 +3,7 @@
 !
 module var
     integer :: Ns,Nmssf
-    integer, parameter :: Nq = 301
+    integer, parameter :: Nq = 201
     integer, dimension(:), allocatable :: S
     real(8), parameter :: pi = 4.0d0*atan(1.0d0) 
     real(8), dimension(:), allocatable :: rx,ry,mx,my
@@ -40,14 +40,14 @@ subroutine inicia_q
 
     allocate(qx(Nq*Nq),qy(Nq*Nq),qmod(Nq*Nq))
 
-    dq = 3.0d0*pi/real(Nq-1,8)
+    dq = 12.0d0*pi/real(Nq-1,8)
     iq = 0
 
     do i = 1,Nq
         do j = 1,Nq
             iq = iq + 1
-            qx(iq) = -pi*1.5d0 + (i-1)*dq
-            qy(iq) = -pi*1.5d0 + (j-1)*dq
+            qx(iq) = -pi*6.d0 + (i-1)*dq
+            qy(iq) = -pi*6.d0 + (j-1)*dq
             if (qx(iq)==0.0d0 .and. qy(iq)==0.0d0) then
                 qmod(iq) = 10000000.0d0
             else
@@ -112,15 +112,17 @@ subroutine inicia_var
     return
 end subroutine inicia_var
 
-subroutine ler_S
+subroutine ler_S(soma)
     use var, only : Ns,S
     implicit none
+    real(8), dimension(Ns), intent(inout) :: soma
     integer :: i,si
 
     S = 0
     do i = 1,Ns
         read(10,*) si
         S(i) = 2*si - 1
+        soma(i) = soma(i) + 1.0d0*S(i)
     end do
 
     return
@@ -161,10 +163,11 @@ subroutine intensity(soma)
     return
 end subroutine intensity
 
-subroutine output(k)
-    use var, only : Nq,Ns,qx,qy,rx,ry,mx,my,S,Intensidade
+subroutine output(k,soma)
+    use var, only : Nq,Ns,qx,qy,rx,ry,mx,my,Intensidade
     implicit none
     integer, intent(in) :: k
+    real(8), dimension(Ns), intent(in) :: soma
     integer :: iq,i
     real(8) :: Imax
     character(60) :: n1,n2
@@ -185,7 +188,7 @@ subroutine output(k)
     write(30,*) Ns
     write(30,*) ' '
     do i = 1,Ns
-        write(30,*) rx(i),ry(i),S(i)*mx(i),S(i)*my(i)
+        write(30,*) rx(i),ry(i),soma(i)*mx(i),soma(i)*my(i)
     end do
     
     close(20)
@@ -195,26 +198,29 @@ subroutine output(k)
 end subroutine output
 
 program main
-    use var, only : Nmssf,Intensidade,Nq
+    use var, only : Nmssf,Intensidade,Nq,Ns
     implicit none
     integer :: k
     real(8) :: ti,tf
-    real(8), dimension(:), allocatable :: soma
+    real(8), dimension(:), allocatable :: soma,somaS
 
     call cpu_time(ti)
     call inicia_var
 
     allocate(soma(Nq*Nq))
+    allocate(somaS(Ns))
     
+    somaS = 0.0d0
     do k = 1,Nmssf
-        call ler_S
+        call ler_S(somaS)
         call intensity(soma)
         Intensidade = Intensidade + soma
         !call output(k)
     end do
 
     Intensidade = Intensidade / real(Nmssf,8)
-    call output(1)
+    somaS = somaS / real(Nmssf,8)
+    call output(1,somaS)
 
     call cpu_time(tf)
 
