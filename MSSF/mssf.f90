@@ -1,6 +1,16 @@
+!   Código para gerar o Fator de Estrutura Magnético de um spin ice
 !
+! Estrutura do arquivo de input:
+! Ns,Nmssf --> Número de spin na rede e o número total de configurações para média
+! rx(1),ry(1),mx(1),my(1)
+!...
+! rx(Ns),ry(Ns),mx(Ns),my(N)
 !
-!
+!1: S(1) .... S(Ns)
+!2: S(1) .... S(Ns)
+!...
+!Nmssf: S(1) .... S(Ns)
+!---------------------------------------------------------!
 module var
     integer :: Ns,Nmssf
     integer, parameter :: Nq = 201
@@ -8,8 +18,6 @@ module var
     real(8), parameter :: pi = 4.0d0*atan(1.0d0) 
     real(8), dimension(:), allocatable :: rx,ry,mx,my
     real(8), dimension(:), allocatable :: qx,qy,qmod
-    !real(8), dimension(:), allocatable :: spx,spy
-    !real(8), dimension(:), allocatable :: tcos,tsin
     real(8), dimension(:), allocatable :: Ax,Ay,Bx,By
     real(8), dimension(:), allocatable :: Intensidade
 end module var
@@ -49,7 +57,7 @@ subroutine inicia_q
             qx(iq) = -pi*6.d0 + (i-1)*dq
             qy(iq) = -pi*6.d0 + (j-1)*dq
             if (qx(iq)==0.0d0 .and. qy(iq)==0.0d0) then
-                qmod(iq) = 10000000.0d0
+                qmod(iq) = 1.0d0
             else
                 qmod(iq) = 1.0d0/(qx(iq)**2 + qy(iq)**2)
             end if
@@ -65,8 +73,6 @@ subroutine inicia_A
     integer :: i,j,k,l,iq
     real(8) :: spx,spy,a,theta
 
-    !allocate(spx(Nq*Nq*Ns),spy(Nq*Nq*Ns))
-    !allocate(tcos(Nq*Nq*Ns),tsin(Nq*Nq*Ns))
     allocate(Ax(Nq*Nq*Ns),Ay(Nq*Nq*Ns),Bx(Nq*Nq*Ns),By(Nq*Nq*Ns))
     allocate(Intensidade(Nq*Nq))
     Intensidade = 0.0d0
@@ -90,14 +96,11 @@ subroutine inicia_A
 
                 Bx(l) = spx*sin(theta)
                 By(l) = spy*sin(theta)
-                
-                !tcos(l) = qx(iq)*rx(i) + qy(iq)*ry(i)
-                !tsin(l) = qx(iq)*rx(i) + qy(iq)*ry(i)
-                !spx(l) = mx(i) - A*qx(iq)*qmod(iq)
-                !spy(l) = my(i) - A*qy(iq)*qmod(iq)
+
             end do
         end do
     end do
+    deallocate(qmod)
 
     return
 end subroutine inicia_A
@@ -107,7 +110,7 @@ subroutine inicia_var
 
     call ler_input 
     call inicia_q       ! Vetores de onda
-    call inicia_A       ! Componente perpendicular
+    call inicia_A   
 
     return
 end subroutine inicia_var
@@ -158,7 +161,7 @@ subroutine intensity(soma)
         end do
     end do
 
-    soma = soma / real(Ns,8)
+    !soma = soma / real(Ns,8)
 
     return
 end subroutine intensity
@@ -169,11 +172,11 @@ subroutine output(k,soma)
     integer, intent(in) :: k
     real(8), dimension(Ns), intent(in) :: soma
     integer :: iq,i
-    real(8) :: Imax
+    !real(8) :: Imax
     character(60) :: n1,n2
 
-    Imax = maxval(Intensidade)
-    Intensidade = Intensidade / Imax
+    !Imax = maxval(Intensidade)
+    !Intensidade = Intensidade / Imax
 
     write(n1,"('output_',I3.3,'.dat')") k
     write(n2,"('output_',I3.3,'.xyz')") k
@@ -201,16 +204,14 @@ program main
     use var, only : Nmssf,Intensidade,Nq,Ns
     implicit none
     integer :: k
-    real(8) :: ti,tf
     real(8), dimension(:), allocatable :: soma,somaS
 
-    call cpu_time(ti)
     call inicia_var
-
     allocate(soma(Nq*Nq))
     allocate(somaS(Ns))
     
     somaS = 0.0d0
+    Intensidade = 0.0d0
     do k = 1,Nmssf
         call ler_S(somaS)
         call intensity(soma)
@@ -218,12 +219,10 @@ program main
         !call output(k)
     end do
 
-    Intensidade = Intensidade / real(Nmssf,8)
+    Intensidade = Intensidade / real(Ns*Nmssf,8)
     somaS = somaS / real(Nmssf,8)
+    deallocate(soma)
     call output(1,somaS)
-
-    call cpu_time(tf)
-
-    print*, 'Tempo:', tf-ti
+    deallocate(somaS)
 
 end program main

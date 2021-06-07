@@ -443,21 +443,16 @@ subroutine inicia_Bi
 
    allocate(Bi(Ns))
 
+   E_tot = 0.0d0
    Bi(:) = 0.0d0
    do i = 1,Ns
       do k = Nviz(i-1)+1,Nviz(i)
          j = jviz(k)
          Bi(i) = Bi(i) + S(j)*Aij(k)
       end do
-   end do
-
-   E_tot = 0.0d0
-   do i = 1,Ns
       E_tot = E_tot + S(i)*Bi(i)
    end do
    E_tot = 0.5d0*E_tot
-
-   print*, E_tot
 
    return
 end subroutine inicia_Bi
@@ -474,11 +469,17 @@ subroutine diretorios
       call system("mkdir " // trim(dir1))
    end if
 
+   dir1 = 'Resultados/Annealing/'
+   inquire(file=dir1,exist=direx)
+   if (direx .eqv. .false.) then
+      call system("mkdir " // trim(dir1))
+   end if
+
    direx = .true.
    i = 0
    do while(direx .eqv. .true.)
       i = i + 1
-      write(dir2,"('Resultados/Simula_',I4.4,'/')") i
+      write(dir2,"('Resultados/Annealing/Simula_',I4.4,'/')") i
       inquire(file=dir2,exist=direx)
    end do
    call system("mkdir " // trim(dir2))

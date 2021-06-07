@@ -88,12 +88,6 @@ subroutine diretorios(tipo,nx,ny,cont,theta)
         BC = "NBC"
     end if
 
-    !if (theta < 10.0d0) then
-    !    write(dir2,"('Inicial/',A,'_',I2.2,'x',I2.2,'_',A,'_',F2.0,'/')") trim(tipo),nx,ny,trim(BC),theta
-    !else
-    !    write(dir2,"('Inicial/',A,'_',I2.2,'x',I2.2,'_',A,'_',F3.0,'/')") trim(tipo),nx,ny,trim(BC),theta
-    !end if
-
     write(dir2,"('Inicial/',A,'_',I2.2,'x',I2.2,'_',A,'_',I4.4,'/')") trim(tipo),nx,ny,trim(BC),int(100.0d0*theta)
 
     inquire(file=dir2,exist=direx)
