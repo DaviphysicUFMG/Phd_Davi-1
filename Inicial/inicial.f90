@@ -121,7 +121,7 @@ subroutine kagome
     ey(1) = -sin((30.0d0 + theta)*pi/180.0d0)
 
     ex(2) = -cos((90.0d0 + theta)*pi/180.0d0) 
-    ey(2) = sin((90.0d0 + theta)*pi/180.0d0)
+    ey(2) = -sin((90.0d0 + theta)*pi/180.0d0)
 
     ex(3) = -cos((150.0d0 + theta)*pi/180.0d0)
     ey(3) = -sin((150.0d0 + theta)*pi/180.0d0)
