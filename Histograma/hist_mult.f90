@@ -162,4 +162,9 @@ subroutine FS_interpol
 
 end subroutine FS_interpol
 
+program Ferrenberg_Swendsen
+    call inicia
+    call Zk_calc
+    call FS_interpol
+end program Ferrenberg_Swendsen
         
