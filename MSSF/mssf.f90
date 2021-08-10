@@ -32,8 +32,8 @@ subroutine ler_input
     read(10,*) Ns, Nmssf
     allocate(rx(Ns),ry(Ns),mx(Ns),my(Ns),S(Ns))
     S = 0
-    print*, 'Entre com N_sample'
-    read(*,*) Nmssf
+    !print*, 'Entre com N_sample'
+    !read(*,*) Nmssf
 
     do i = 1,Ns
         read(10,*) rx(i),ry(i),mx(i),my(i)

@@ -148,7 +148,7 @@ end module ranutil
 module var_annealing
    real(8), parameter :: pi = 4.0d0*atan(1.0d0)
    integer :: seed
-   integer :: Ns,N_viz,N_mc,N_temp,N_skt,N_K,N_T
+   integer :: Ns,N_viz,N_mc,N_temp,N_skt,N_kago,N_tri,N_mssf
    integer, dimension(:), allocatable :: S,Nviz,jviz
    integer, dimension(:), allocatable :: Sk,Vk,Rk,St,Vt,Rt
    real(8), dimension(:), allocatable :: Aij,Bi
@@ -194,7 +194,7 @@ end subroutine inicial
 subroutine ler_input(iunit)
    !use mtmod, only : getseed,sgrnd
    use ranutil, only : initrandom
-   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf,N_skt,N_K,N_T!,seed
+   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf,N_skt,N_kago,N_tri,N_mssf!,seed
    implicit none
    integer, intent(in) :: iunit
    real(8) :: a
@@ -210,12 +210,17 @@ subroutine ler_input(iunit)
    read(iunit,*) N_temp
    read(iunit,*) Ti
    read(iunit,*) Tf
-   read(iunit,*) N_skt,N_K,N_T
+   read(iunit,*) N_skt
+   read(iunit,*) N_kago
+   read(iunit,*) N_tri
+   read(iunit,*) N_mssf
    close(iunit)
 
    !seed = getseed()
    !call sgrnd(seed)
    call initrandom()
+
+   N_mssf = N_mc/N_mssf
 
    return
 end subroutine ler_input
@@ -382,41 +387,43 @@ subroutine update(i,dE)
 end subroutine update
 
 subroutine Monte_Carlo(temps)
-   use var_annealing, only : Ns,N_mc,beta,iunit_conf,iunit_en,E_tot
+   use var_annealing, only : N_mc,N_mssf,beta,iunit_conf,iunit_en,N_kago!,N_tri
    implicit none
    real(8), intent(in) :: temps
-   integer :: imc
-   real(8) :: E1,E2
+   integer :: N_single,N
+   integer :: imc,kmc
 
+   N_single = N_mc-N_kago
    beta = 1.0d0/temps
+   N = N_single/N_kago
 
    ! Termalização !
-   do imc = 1,N_mc
+   do imc = 1,N_single
       call metropolis
+      if (mod(imc,N).eq.0) then
+         call worm_k
+      end if
    end do
 
    ! Amostragem !
    call config_S(iunit_conf,0)
    call En_save(iunit_en,1)
 
-   E1 = 0.0d0
-   E2 = 0.0d0
-
-   do imc = 1,N_mc
+   kmc = 0
+   do imc = 1,N_single
+      kmc = kmc + 1
       call metropolis
       call samples(temps)
-      E1 = E1 + E_tot
-      E2 = E2 + E_tot**2
-
-      if (mod(imc,10)==0) then
-         call config_S(40,2)
+      if (mod(imc,N).eq.0) then
+         kmc = kmc + 1
+         call worm_k
+         call samples(temps)
       end if
+      if (mod(kmc,N_mssf).eq.0) then
+         call config_S(iunit_conf,1)
+      end if
+      call flush()
    end do
-
-   E1 = E1/real(N_mc)
-   E2 = E2/real(N_mc)
-
-   write(50,*) temps,E1/real(Ns,8),(E2 - E1**2)/real(Ns,8)*beta**2
 
    call config_S(iunit_conf,3)
     
@@ -456,7 +463,7 @@ subroutine samples(temps)
 end subroutine samples
 
 subroutine config_S(iunit,flag)
-   use var_annealing, only : Ns,N_mc,rx,ry,mx,my,S,temp,dir2
+   use var_annealing, only : Ns,N_mc,N_mssf,rx,ry,mx,my,S,temp,dir2
    implicit none
    integer, intent(in) :: iunit,flag
    integer :: i
@@ -467,7 +474,7 @@ subroutine config_S(iunit,flag)
       write(nome,"('config_temp_',f8.2,'.dat')") temp
       open(unit=iunit,file=trim(dir2) // trim(nome))
 
-      write(iunit,*) Ns,N_mc
+      write(iunit,*) Ns,N_mc/N_mssf
       do i = 1,Ns
          write(iunit,*) rx(i),ry(i),mx(i),my(i)
       end do
@@ -490,7 +497,7 @@ subroutine config_S(iunit,flag)
 end subroutine config_S
 
 subroutine En_save(iunit,flag)
-   use var_annealing, only : Ns,N_mc,N_temp,temp,E_tot,dir2
+   use var_annealing, only : Ns,N_mc,N_temp,temp,E_tot,dir2,S,mx,my
    implicit none
    integer, intent(in) :: iunit,flag
 
@@ -500,7 +507,7 @@ subroutine En_save(iunit,flag)
    else if (flag == 1) then
       write(iunit,*) temp
    else if (flag == 2) then
-      write(iunit,*) E_tot
+      write(iunit,*) E_tot,sum(S*mx),sum(S*my)
    else if (flag == 3) then
       call flush()
       close(iunit)
@@ -515,20 +522,150 @@ subroutine Annealing
    integer :: i_temp
    real(8) :: temps
 
-   open(40,file='config.xyz')
-   open(50,file='en_med.dat')
+   !open(40,file='config.xyz')
+   !open(50,file='en_med.dat')
 
    do i_temp = 1,N_temp
       temps = Ti + (i_temp-1)*dT
       temp = temps
+      print*, 'Simualando em T=',temp
       call Monte_Carlo(temps)
    end do
 
-   close(40)
-   close(50)
+   !close(40)
+   !close(50)
 
    return
 end subroutine Annealing
+
+subroutine worm_k
+   use ranutil
+   use var_annealing, only : Ns,N_skt,S,Sk,Vk,Rk
+   implicit none
+   integer :: i,j
+   integer :: iworm, cont
+   integer :: v_0,ivk,isk
+   integer :: v_worm(N_skt), s_worm(Ns)
+   integer :: v_sequ(N_skt), s_sequ(N_skt)
+   integer :: pool(3)
+   
+   v_worm = 0
+   s_worm = 0
+   v_sequ = 0
+   s_sequ = 0
+
+   v_0 = int(N_skt*ranmar()/3.0d0)+1
+   !i=rand_int(0,100)
+   ivk = v_0
+   v_worm(ivk) = 1
+   v_sequ(1) = ivk
+   iworm = 0
+
+   do while (iworm <= N_skt)
+      iworm = iworm + 1
+      cont = 0
+      pool = 0
+
+      do i = 3*(ivk-1)+1,3*(ivk-1)+3
+         j = Vk(i)
+         if (Rk(i)*S(j) < 0.0d0) then
+            cont = cont + 1
+            pool(cont) = j
+         end if
+      end do
+
+      if (cont .ne. 0) then
+         isk = pool(int(cont*ranmar())+1)
+         s_worm(isk) = 1
+         s_sequ(iworm) = isk
+      else
+         return
+      end if
+
+      if (Sk(2*(isk-1)+1) .ne. ivk) then
+         ivk = Sk(2*(isk-1)+1)
+      else
+         ivk = Sk(2*(isk-1)+2)
+      end if
+
+      if (v_worm(ivk) .eq. 1) then
+         if (ivk .eq. v_0) then
+            call metropolis_loop(s_worm)
+            return
+         else
+            call corta_rabo(N_skt,ivk,s_worm,s_sequ,v_sequ)
+            call metropolis_loop(s_worm)
+            return
+         end if
+      else
+         v_worm(ivk) = 1
+         v_sequ(iworm+1) = ivk
+      end if
+   end do
+
+   return
+end subroutine worm_k
+
+subroutine corta_rabo(N,ivk,s_worm,s_sequ,v_sequ)
+   use var_annealing, only : Ns
+   implicit none
+   integer, intent(in) :: N,ivk
+   integer, dimension(N), intent(in) :: s_sequ,v_sequ
+   integer, dimension(Ns), intent(inout) :: s_worm
+   integer :: i,j
+
+   do i = 1,N
+      if (v_sequ(i) .ne. ivk) then
+         j = s_sequ(i)
+         s_worm(j) = 0
+      else if (v_sequ(i) .eq. ivk) then
+         return
+      end if
+   end do
+
+   return
+end subroutine corta_rabo
+
+subroutine metropolis_loop(s_worm)
+   use ranutil
+   use var_annealing, only : Ns,S,Bi,beta,E_tot,Aij,Nviz,jviz
+   implicit none
+   integer, dimension(Ns), intent(in) :: s_worm
+   integer, dimension(Ns) :: Sn
+   integer :: i,j,k
+   real(8), dimension(Ns) :: Bi_n
+   real(8) :: E0,En,dE
+
+   Sn = S
+   do i = 1,Ns
+      if (s_worm(i)==1) then
+         Sn(i) = -Sn(i)
+      end if
+   end do
+   
+   E0 = E_tot
+   En = 0.0d0
+
+   Bi_n = 0.0d0
+   do i = 1,Ns
+      do k = Nviz(i-1)+1,Nviz(i)
+         j = jviz(k)
+         Bi_n(i) = Bi_n(i) + Sn(j)*Aij(k)
+      end do
+      En = En + Sn(i)*Bi_n(i)
+   end do
+
+   En = 0.5d0*En
+   dE = En - E0
+
+   if (ranmar() .lt. exp(-beta*dE)) then
+      S = Sn
+      E_tot = En
+      Bi = Bi_n
+   end if
+
+   return
+end subroutine metropolis_loop
 
 program main
    

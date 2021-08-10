@@ -553,7 +553,10 @@ subroutine output
     write(13,*) 20,"    !N_temp"
     write(13,*) 10.0,"    !Temperatura inicial"
     write(13,*) 0.5,"    !Temperatura final"
-    write(13,*) N_svt,N_K,N_T
+    write(13,*) N_svt
+    write(13,*) "    !N_kago"
+    write(13,*) "    !N_tri"
+    write(13,*) "    !N_mssf"
     close(13)
     if (N_svt .ne. N_svk) then
         print*, 'Erro em N_K e N_T',N_K,N_T

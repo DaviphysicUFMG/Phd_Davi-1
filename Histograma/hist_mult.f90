@@ -201,7 +201,8 @@ subroutine inicia
         read(1,*) beta(i)
         do j = 1,N_mc
             k = k + 1
-            read(1,*) En(k),Mx(k),My(k),M(k)
+            read(1,*) En(k),Mx(k),My(k)
+            M(k) = sqrt(Mx(k)**2 + My(k)**2)
         end do
     end do
     close(1)
