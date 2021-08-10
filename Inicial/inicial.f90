@@ -1,15 +1,17 @@
 module var_inicial
     integer :: rede,contorno
     integer :: nx,ny,Ns,N_viz     !! ny deve ser par !!
+    integer :: N_k,N_T,N_svt,N_svk
     integer, dimension(:), allocatable :: Nviz,jviz,cor
     real(8) :: a,Lx,Ly,D,rc,theta
     real(8), parameter :: pi = 4.0d0*atan(1.0d0)
     real(8), dimension(:), allocatable :: rx,ry,mx,my,Aij
+    real(8), dimension(:), allocatable :: xt,yt,xk,yk
     character(200) :: dir1,dir2
 end module var_inicial
 
 subroutine parametros_iniciais
-    use var_inicial, only : rede,contorno,nx,ny,a,theta
+    use var_inicial, only : rede,contorno,nx,ny,a,theta,rc
     implicit none
 
     print*, "Parametros iniciais para a rede:"
@@ -22,13 +24,16 @@ subroutine parametros_iniciais
     read(*,*) nx,ny
     print*, "Entre com o espaçamento de rede:"
     read(*,*) a
+    print*, "Entre com o raio de corte (indicado = 6.0d0):"
+    read(*,*) rc
     print*, "--------------------------------"
     print*, "A simulação é com ou sem contorno?"
-    print*, "Com contorno = 1; Sem contorno = 2; Ising = 3"
+    print*, "Com contorno = 1; Sem contorno = 2"
     read(*,*) contorno
     print*, "Ângulo de rotação do spin:"
     read(*,*) theta
   
+    rc = rc*a
     return
 end subroutine parametros_iniciais
 
@@ -67,8 +72,6 @@ subroutine unit_cel
     else if (contorno == 2) then
         call Aij_sem_contorno_x
         print*, "Rede sem condições de contorno gerada."
-    else if (contorno == 3) then
-        call Aij_com_contorno_Ising
     end if
 
 end subroutine unit_cel
@@ -266,7 +269,7 @@ subroutine quadrada
 end subroutine quadrada
 
 subroutine config
-    use var_inicial, only : Ns,rx,ry,mx,my,cor,dir2
+    use var_inicial!, only : Ns,rx,ry,mx,my,cor,dir2
     implicit none
     integer :: i
 
@@ -278,99 +281,31 @@ subroutine config
     end do
     close(10)
 
+    call flush()
+    
+    open(10,file=trim(dir2) // "vertice_k.xyz")
+    write(10,*) N_k
+    write(10,*) ' '
+    do i = 1,N_k
+        write(10,*) xk(i),yk(i)
+    end do
+    close(10)
+
+    call flush()
+    
+    open(10,file=trim(dir2) // "vertice_T.xyz")
+    write(10,*) N_T
+    write(10,*) ' '
+    do i = 1,N_T
+        write(10,*) xT(i),yT(i)
+    end do
+    close(10)
+
     return
 end subroutine config
 
-subroutine Aij_sem_contorno
-    use var_inicial, only : Ns,N_viz,rx,ry,mx,my,Aij,Nviz,D,jviz
-    implicit none
-    integer :: i,j
-    real(8) :: x,y,dij,D1,D2
-    real(8) :: minA,maxA
-
-    allocate(Aij(Ns*Ns),Nviz(0:Ns),jviz(Ns*Ns))
-    Aij(:) = 0.0d0
-    Nviz(:) = 0
-    jviz(:) = 0
-    N_viz = 0
-    do i = 1,Ns
-        do j = 1,Ns
-            if (j.ne.i) then
-                N_viz = N_viz + 1
-                x = rx(i) - rx(j)
-                y = ry(i) - ry(j)
-                dij = 1.0d0/sqrt(x*x + y*y)
-                x = x*dij
-                y = y*dij
-                D1 = mx(i)*mx(j) + my(i)*my(j)
-                D2 = 3.0d0*(mx(i)*x + my(i)*y)*(mx(j)*x + my(j)*y)
-                Aij(N_viz) = (D1 - D2)*dij**3
-                jviz(N_viz) = j
-            end if
-        end do
-        Nviz(i) = N_viz
-    end do
-
-    minA = minval(abs(Aij))
-    maxA = maxval(abs(Aij))
-    D = 1.0d0/maxA
-    Aij = Aij*D
-
-    return
-end subroutine Aij_sem_contorno
-
-subroutine Aij_com_contorno
-    use var_inicial, only : Ns,N_viz,rx,ry,mx,my,Aij,Nviz,D,Lx,Ly,rc,a,jviz
-    implicit none
-    integer :: i,j,ni,nj,nc
-    real(8) :: x,y,dij,D1,D2
-    real(8) :: minA,maxA
-
-    allocate(Aij(Ns**3),Nviz(0:Ns),jviz(Ns**3))
-
-    Aij(:) = 0.0d0
-    Nviz(:) = 0
-    jviz(:) = 0
-    N_viz = 0
-    nc = 1
-    rc = 5.0d0*a
-    do i = 1,Ns
-        do ni = -nc,nc
-            do nj = -nc,nc
-                do j = 1,Ns
-                    x = rx(i) - rx(j) + real(ni*Lx,8)
-                    y = ry(i) - ry(j) + real(nj*Ly,8)
-                    if ((sqrt(x*x+y*y) <= rc).and.(sqrt(x*x+y*y)>0.1d0)) then
-                        N_viz = N_viz + 1
-                        dij = 1.0d0/sqrt(x*x + y*y)
-                        x = x*dij
-                        y = y*dij
-                        D1 = mx(i)*mx(j) + my(i)*my(j)
-                        D2 = 3.0d0*(mx(i)*x + my(i)*y)*(mx(j)*x + my(j)*y)
-                        Aij(N_viz) = (D1 - D2)*dij**3
-                        jviz(N_viz) = j
-                    end if
-                end do
-            end do
-        end do
-        Nviz(i) = N_viz
-    end do
-
-    minA = 10000.0d0
-    do i = 1,N_viz
-        if (abs(Aij(i)) .lt. minA) then
-            minA = abs(Aij(i))
-        end if
-    end do
-    maxA = maxval(abs(Aij))
-    D = 1.0d0/maxA
-    Aij = Aij*D
-
-    return
-end subroutine Aij_com_contorno
-
 subroutine Aij_sem_contorno_x
-    use var_inicial, only : Ns,N_viz,rx,ry,mx,my,rc,a,dir2
+    use var_inicial, only : Ns,N_viz,rx,ry,mx,my,rc,dir2
     implicit none
     integer :: i,j
     real(8) :: x,y,dij,D1,D2,Aijmin,Aijmax,soma,Aij
@@ -378,7 +313,7 @@ subroutine Aij_sem_contorno_x
     open(11,file=trim(dir2) // 'Aij.dat')
     open(12,file=trim(dir2) // 'Nviz.dat')
     N_viz = 0
-    rc = 200000.0d0*a
+    !rc = 6.0d0*a
     Aijmin = 10000000.0d0
     Aijmax = -10000000.0d0
     do i = 1,Ns
@@ -415,7 +350,7 @@ subroutine Aij_sem_contorno_x
 end subroutine Aij_sem_contorno_x
 
 subroutine Aij_com_contorno_x
-    use var_inicial, only : Ns,N_viz,rx,ry,mx,my,Lx,Ly,rc,a,dir2
+    use var_inicial, only : Ns,N_viz,rx,ry,mx,my,Lx,Ly,rc,dir2
     implicit none
     integer :: i,j,ni,nj,nc
     real(8) :: x,y,dij,D1,D2,Aijmin,Aijmax,soma,Aij
@@ -425,7 +360,7 @@ subroutine Aij_com_contorno_x
 
     N_viz = 0
     nc = 3
-    rc = 20.0d0*a
+    !rc = 6.0d0*a
     Aijmin = 10000000.0d0
     Aijmax = -10000000.0d0
     do i = 1,Ns
@@ -465,44 +400,136 @@ subroutine Aij_com_contorno_x
     return
 end subroutine Aij_com_contorno_x
 
-subroutine Aij_com_contorno_Ising
-    use var_inicial, only : Ns,N_viz,rx,ry,Lx,Ly,rc,a,dir2
+subroutine vertice_T
+    use var_inicial, only : Ns,nx,ny,N_T,N_svt,xT,yT,a,Lx,Ly,pi,dir2,rx,ry,mx,my
     implicit none
-    integer :: i,j,ni,nj,nc
-    real(8) :: x,y,soma,Aij
+    integer :: i,j,k,ni,nj
+    real(8) :: vxu,vyu
+    real(8) :: x,y,DD,Lij
 
-    open(11,file=trim(dir2) // 'Aij.dat')
-    open(12,file=trim(dir2) // 'Nviz.dat')
+    N_T = nx*ny
+    N_svt = 6*N_T
+    allocate(xT(N_T),yT(N_T))
+    
+    vxu = 1.5d0*a
+    vyu = 0.5d0*a*tan(60.0d0*pi/180.0d0)
 
-    N_viz = 0
-    nc = 1
-    rc = 1.d0*a
-    do i = 1,Ns
-        soma = 0.0d0
-        do ni = -nc,nc
-            do nj = -nc,nc
+    k = 0
+    do j = 1,ny
+        do i = 1,nx
+            k = k + 1
+            xT(k) = vxu + 2.0d0*a*(i-1) + a*mod(j+1,2)
+            yT(k) = vyu + 2.0d0*a*sin(60.0d0*pi/180.0d0)*(j-1)
+        end do
+    end do
+
+    xT = xT - 0.5d0*Lx
+    yT = yT - 0.5d0*Ly
+
+    open(1,file=trim(dir2) // "vertice_T.dat")
+    do i = 1,N_T
+        do ni = -3,3
+            do nj = -3,3
                 do j = 1,Ns
-                    x = rx(i) - rx(j) + real(ni*Lx,8)
-                    y = ry(i) - ry(j) + real(nj*Ly,8)
-                    if ((sqrt(x*x+y*y) <= rc).and.(sqrt(x*x+y*y)>0.1d0)) then
-                        N_viz = N_viz + 1
-                        Aij = 1.0d0
-                        soma = soma + Aij
-                        !Aij(N_viz) = (D1 - D2)*dij**3
-                        !jviz(N_viz) = j
-                        write(11,*) j,Aij
+                    x = xT(i) - rx(j) + real(ni*Lx,8)
+                    y = yT(i) - ry(j) + real(nj*Ly,8)
+                    DD = sqrt(x**2 + y**2)
+                    if (DD<1.3d0*a .and. DD>0.9d0*a) then
+                        Lij = x*mx(j) + y*my(j)
+                        write(1,*) j,int(sign(1.d0,Lij))
                     end if
                 end do
             end do
         end do
-        write(12,*) N_viz
     end do
 
+    do i = 1,Ns
+        do ni = -3,3
+            do nj = -3,3
+                do j = 1,N_T
+                    x = xT(j) - rx(i) + real(ni*Lx,8)
+                    y = yT(j) - ry(i) + real(nj*Ly,8)
+                    DD = sqrt(x**2 + y**2)
+                    if (DD<1.3d0*a .and. DD>0.9d0*a) then
+                        write(1,*) j
+                    end if
+                end do
+            end do
+        end do
+    end do
+    close(1)
 
-    close(11)
-    close(12)
     return
-end subroutine Aij_com_contorno_Ising
+
+end subroutine vertice_T
+
+subroutine vertice_K
+    use var_inicial, only : Ns,nx,ny,N_k,N_svk,xk,yk,a,Lx,Ly,pi,dir2,rx,ry,mx,my
+    implicit none
+    integer :: i,j,k,l,ni,nj
+    real(8) :: vxu(2),vyu(2)
+    real(8) :: x,y,DD,Lij
+
+    N_K = 2*nx*ny
+    N_svk = 3*N_k
+    allocate(xk(N_k),yk(N_k))
+    
+    vxu(1) = 0.5d0*a
+    vyu(1) = 0.5d0*a*tan(30.0d0*pi/180.0d0)
+
+    vxu(2) = 0.5d0*a
+    vyu(2) = a*tan(60.0d0*pi/180.0d0) - vyu(1)
+
+    k = 0
+    do j = 1,ny
+        do i = 1,nx
+            do l = 1,2
+                k = k + 1
+                xk(k) = vxu(l) + 2.0d0*a*(i-1) + a*mod(j+1,2)
+                yk(k) = vyu(l) + 2.0d0*a*sin(60.0d0*pi/180.0d0)*(j-1)
+            end do
+        end do
+    end do
+
+    xk = xk - 0.5d0*Lx
+    yk = yk - 0.5d0*Ly
+
+    open(1,file=trim(dir2) // "vertice_K.dat")
+    do i = 1,N_K
+        do ni = -3,3
+            do nj = -3,3
+                do j = 1,Ns
+                    x = xk(i) - rx(j) + real(ni*Lx,8)
+                    y = yk(i) - ry(j) + real(nj*Ly,8)
+                    DD = sqrt(x**2 + y**2)
+                    if (DD<a .and. DD>0.1d0*a) then
+                        Lij = x*mx(j) + y*my(j)
+                        write(1,*) j,int(sign(1.d0,Lij))
+                    end if
+                end do
+            end do
+        end do
+    end do
+
+    do i = 1,Ns
+        do ni = -3,3
+            do nj = -3,3
+                do j = 1,N_K
+                    x = xk(j) - rx(i) + real(ni*Lx,8)
+                    y = yk(j) - ry(i) + real(nj*Ly,8)
+                    DD = sqrt(x**2 + y**2)
+                    if (DD<a .and. DD>0.1d0*a) then
+                        write(1,*) j
+                    end if
+                end do
+            end do
+        end do
+    end do
+    close(1)
+
+    return
+
+end subroutine vertice_K
 
 subroutine output
     use var_inicial
@@ -522,72 +549,23 @@ subroutine output
     write(13,*) 1.875d0,"   !delH"
     write(13,*) 50.0d0,"   !Campo externo máximo"
     write(13,*) theta_h,"   !Theta para histerese"
+    write(13,*) 50000,"    !N_mc"
+    write(13,*) 20,"    !N_temp"
+    write(13,*) 10.0,"    !Temperatura inicial"
+    write(13,*) 0.5,"    !Temperatura final"
+    write(13,*) N_svt,N_K,N_T
     close(13)
-
+    if (N_svt .ne. N_svk) then
+        print*, 'Erro em N_K e N_T',N_K,N_T
+    end if
 end subroutine output
-
-subroutine campo
-    use var_inicial, only : Ns,rx,ry,mx,my
-    implicit none
-    integer,parameter :: Np = 400,seed = 83434
-    integer :: i,j,k
-    real(8) :: dx,dy,x,y,r,Bx,By,xx,yy,r3
-    real(8) :: xmin,xmax,ymin,ymax,S(Ns)
-
-    call srand(seed)
-
-    do i = 1,Ns
-        if (rand() < 0.3d0) then
-            S(i) = -1.0d0
-        else
-            S(i) = 1.0d0
-        end if
-    end do
-
-    xmin = minval(rx)
-    xmax = maxval(rx)
-    ymin = minval(ry)
-    ymax = maxval(ry)
-
-    dx = 150.0d0/real(Np-1,8)
-    dy = dx
-
-    open(1000,file='campo.dat')
-
-    do i = 1,Np
-        x = -75.0d0 + (i-1)*dx
-        do j = 1,Np
-            y = -75.0d0 + (j-1)*dy
-            Bx = 0.0d0
-            By = 0.0d0
-            if ((x > xmin .and. x < xmax) .and. (y > ymin .and. y < ymax)) then
-                Bx = 0.0d0
-                By = 0.0d0
-            else
-                do k = 1,Ns
-                    xx = x - rx(k)
-                    yy = y - ry(k)
-                    r = sqrt(xx**2 + yy**2)
-                    xx = xx/r
-                    yy = yy/r
-                    r3 = r**3
-                    Bx = Bx + S(k)*(3.0d0*(mx(k)*xx + my(k)*yy)*xx - mx(k))/r3
-                    By = By + S(k)*(3.0d0*(mx(k)*xx + my(k)*yy)*yy - my(k))/r3
-                end do
-            end if
-            write(1000,*) x,y,Bx,By
-        end do
-    end do
-    
-    close(1000)
-
-end subroutine campo
 
 program inicial_v2
 
     call parametros_iniciais
     call unit_cel
+    call vertice_k
+    call vertice_T
     call output
-    call campo
     
 end program inicial_v2

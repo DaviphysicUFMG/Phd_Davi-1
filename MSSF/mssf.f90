@@ -13,7 +13,7 @@
 !---------------------------------------------------------!
 module var
     integer :: Ns,Nmssf
-    integer, parameter :: Nq = 201
+    integer, parameter :: Nq = 101
     integer, dimension(:), allocatable :: S
     real(8), parameter :: pi = 4.0d0*atan(1.0d0) 
     real(8), dimension(:), allocatable :: rx,ry,mx,my
@@ -32,6 +32,8 @@ subroutine ler_input
     read(10,*) Ns, Nmssf
     allocate(rx(Ns),ry(Ns),mx(Ns),my(Ns),S(Ns))
     S = 0
+    print*, 'Entre com N_sample'
+    read(*,*) Nmssf
 
     do i = 1,Ns
         read(10,*) rx(i),ry(i),mx(i),my(i)
@@ -48,14 +50,14 @@ subroutine inicia_q
 
     allocate(qx(Nq*Nq),qy(Nq*Nq),qmod(Nq*Nq))
 
-    dq = 12.0d0*pi/real(Nq-1,8)
+    dq = 6.0d0*pi/real(Nq-1,8)
     iq = 0
 
     do i = 1,Nq
         do j = 1,Nq
             iq = iq + 1
-            qx(iq) = -pi*6.d0 + (i-1)*dq
-            qy(iq) = -pi*6.d0 + (j-1)*dq
+            qx(iq) = -pi*3.d0 + (i-1)*dq
+            qy(iq) = -pi*3.d0 + (j-1)*dq
             if (qx(iq)==0.0d0 .and. qy(iq)==0.0d0) then
                 qmod(iq) = 1.0d0
             else

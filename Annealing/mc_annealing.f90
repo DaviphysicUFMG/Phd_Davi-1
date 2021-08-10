@@ -148,8 +148,9 @@ end module ranutil
 module var_annealing
    real(8), parameter :: pi = 4.0d0*atan(1.0d0)
    integer :: seed
-   integer :: Ns,N_viz,N_mc,N_temp
+   integer :: Ns,N_viz,N_mc,N_temp,N_skt,N_K,N_T
    integer, dimension(:), allocatable :: S,Nviz,jviz
+   integer, dimension(:), allocatable :: Sk,Vk,Rk,St,Vt,Rt
    real(8), dimension(:), allocatable :: Aij,Bi
    real(8), dimension(:), allocatable :: rx,ry,mx,my
    real(8) :: Ti,Tf,dT
@@ -169,6 +170,7 @@ subroutine inicial
    call ler_config(2)
    call ler_Aij(3)
    call ler_Nviz(4)
+   call ler_Vertices(5)
    
    ! Iniciar Campos !
 
@@ -192,7 +194,7 @@ end subroutine inicial
 subroutine ler_input(iunit)
    !use mtmod, only : getseed,sgrnd
    use ranutil, only : initrandom
-   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf!,seed
+   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf,N_skt,N_K,N_T!,seed
    implicit none
    integer, intent(in) :: iunit
    real(8) :: a
@@ -208,6 +210,7 @@ subroutine ler_input(iunit)
    read(iunit,*) N_temp
    read(iunit,*) Ti
    read(iunit,*) Tf
+   read(iunit,*) N_skt,N_K,N_T
    close(iunit)
 
    !seed = getseed()
@@ -272,6 +275,40 @@ subroutine ler_Nviz(iunit)
 
    return
 end subroutine ler_Nviz
+
+subroutine ler_Vertices(iunit)
+   use var_annealing, only : N_skt,Sk,Vk,Rk,St,Vt,Rt
+   implicit none
+   integer, intent(in) :: iunit
+   integer :: i
+
+   !-----------------------------------------------------------------!
+
+   allocate(St(N_skt),Vt(N_skt),Rt(N_skt))
+   open(unit=iunit,file="vertice_T.dat",status='old',action='read')
+   do i = 1,N_skt
+      read(iunit,*) Vt(i),Rt(i)
+   end do
+   do i = 1,N_skt
+      read(iunit,*) St(i)
+   end do
+   close(iunit)
+
+   !-----------------------------------------------------------------!
+   
+   allocate(Sk(N_skt),Vk(N_skt),Rk(N_skt))
+   open(unit=iunit,file="vertice_K.dat",status='old',action='read')
+   do i = 1,N_skt
+      read(iunit,*) Vk(i),Rk(i)
+   end do
+   do i = 1,N_skt
+      read(iunit,*) Sk(i)
+   end do
+   close(iunit)
+
+   call flush()
+   return
+end subroutine ler_Vertices
 
 subroutine inicia_Bi
    use var_annealing, only : Ns,Nviz,jviz,Aij,Bi,S,E_tot
@@ -412,7 +449,7 @@ subroutine samples(temps)
 
    temp = temps
 
-   call config_S(iunit_conf,1)
+   !call config_S(iunit_conf,1)
    call En_save(iunit_en,2)
 
    return
@@ -500,6 +537,5 @@ program main
    call Annealing
 
 end program main
-
 
 
