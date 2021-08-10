@@ -554,6 +554,7 @@ subroutine output
     write(13,*) 10.0,"    !Temperatura inicial"
     write(13,*) 0.5,"    !Temperatura final"
     write(13,*) N_svt
+    write(13,*) "    !N_sin"
     write(13,*) "    !N_kago"
     write(13,*) "    !N_tri"
     write(13,*) "    !N_mssf"

@@ -336,25 +336,25 @@ subroutine FS_interpol
 end subroutine FS_interpol
 
 subroutine momentos
-    use var_FS, only: N_temp,N_mc,beta,En,Mx,My,M
+    use var_FS, only: N_temp,N_mc,beta,En!,Mx,My,M
     implicit none
     integer :: i,j,k
-    real(8), dimension(:), allocatable :: d1,d2,d3,d4
+    real(8), dimension(:), allocatable :: d1!,d2,d3,d4
     real(8) :: E,errE,Cvmed,errCv,bt
 
-    allocate(d1(N_mc),d2(N_mc),d3(N_mc),d4(N_mc))
+    allocate(d1(N_mc))!,d2(N_mc),d3(N_mc),d4(N_mc))
 
     k = 0
-    open(3,file='teste.dat')
+    open(3,file='Medias.dat')
     write(3,*) ' Temp ',' En ',' dE ',' Cv ', ' dCv '
     do i = 1,N_temp
         bt = beta(i)
         do j = 1,N_mc
             k = k + 1
             d1(j) = En(k)
-            d2(j) = Mx(k)
-            d3(j) = My(k)
-            d4(j) = M(k)
+            !d2(j) = Mx(k)
+            !d3(j) = My(k)
+            !d4(j) = M(k)
         end do
         call jackknife(d1,E,errE,Cvmed,errCv,bt)
         write(3,*) 1.0d0/bt,E,errE,Cvmed,errCv

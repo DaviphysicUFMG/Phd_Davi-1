@@ -147,7 +147,7 @@ end module ranutil
 
 module var_annealing
    real(8), parameter :: pi = 4.0d0*atan(1.0d0)
-   integer :: seed
+   integer :: seed,N_sin
    integer :: Ns,N_viz,N_mc,N_temp,N_skt,N_kago,N_tri,N_mssf
    integer, dimension(:), allocatable :: S,Nviz,jviz
    integer, dimension(:), allocatable :: Sk,Vk,Rk,St,Vt,Rt
@@ -194,7 +194,7 @@ end subroutine inicial
 subroutine ler_input(iunit)
    !use mtmod, only : getseed,sgrnd
    use ranutil, only : initrandom
-   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf,N_skt,N_kago,N_tri,N_mssf!,seed
+   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf,N_skt,N_kago,N_tri,N_mssf,N_sin!,seed
    implicit none
    integer, intent(in) :: iunit
    real(8) :: a
@@ -211,6 +211,7 @@ subroutine ler_input(iunit)
    read(iunit,*) Ti
    read(iunit,*) Tf
    read(iunit,*) N_skt
+   read(iunit,*) N_sin
    read(iunit,*) N_kago
    read(iunit,*) N_tri
    read(iunit,*) N_mssf
@@ -221,6 +222,9 @@ subroutine ler_input(iunit)
    call initrandom()
 
    N_mssf = N_mc/N_mssf
+   !N_single = N_mc-N_kago!-N_tri
+   !Nkag = N_single/N_kago
+   !Ntri = N_single/N_tri
 
    return
 end subroutine ler_input
@@ -387,43 +391,77 @@ subroutine update(i,dE)
 end subroutine update
 
 subroutine Monte_Carlo(temps)
-   use var_annealing, only : N_mc,N_mssf,beta,iunit_conf,iunit_en,N_kago!,N_tri
+   use var_annealing, only : N_mc,N_mssf,beta,iunit_conf,iunit_en,N_sin,N_kago,N_tri
    implicit none
    real(8), intent(in) :: temps
-   integer :: N_single,N
-   integer :: imc,kmc
+   integer :: imc,kmc,tmc,smc
 
-   N_single = N_mc-N_kago
    beta = 1.0d0/temps
-   N = N_single/N_kago
 
    ! Termalização !
-   do imc = 1,N_single
-      call metropolis
-      if (mod(imc,N).eq.0) then
+
+   kmc = 0
+
+   do imc = 1,N_mc
+      do smc = 1,N_sin
+         call metropolis
+      end do
+      do kmc = 1,N_kago
          call worm_k
-      end if
+      end do
+      do tmc = 1,N_tri
+         call worm_t
+      end do
+      !if (mod(imc,Nkag).eq.0) then
+      !   kmc = kmc + 1
+      !   call worm_k
+      !end if
+      !if (mod(imc,Ntri).eq.0) then
+      !   kmc = kmc + 1
+      !   call worm_t
+      !end if
    end do
 
    ! Amostragem !
    call config_S(iunit_conf,0)
    call En_save(iunit_en,1)
 
-   kmc = 0
-   do imc = 1,N_single
-      kmc = kmc + 1
-      call metropolis
-      call samples(temps)
-      if (mod(imc,N).eq.0) then
-         kmc = kmc + 1
+   do imc = 1,N_mc
+      do smc = 1,N_sin
+         call metropolis
+      end do
+      do kmc = 1,N_kago
          call worm_k
-         call samples(temps)
-      end if
-      if (mod(kmc,N_mssf).eq.0) then
+      end do
+      do tmc = 1,N_tri
+         call worm_t
+      end do
+      call config_S(iunit_conf,1)
+      if (mod(imc,N_mssf).eq.0) then
          call config_S(iunit_conf,1)
       end if
-      call flush()
    end do
+
+   ! kmc = 0
+   ! do imc = 1,N_single
+   !    kmc = kmc + 1
+   !    call metropolis
+   !    call samples(temps)
+   !    if (mod(imc,Nkag).eq.0) then
+   !       kmc = kmc + 1
+   !       call worm_k
+   !       call samples(temps)
+   !    end if
+   !    !if (mod(imc,Ntri).eq.0) then
+   !    !   kmc = kmc + 1
+   !    !   call worm_t
+   !    !   call samples(temps)
+   !    !end if
+   !    if (mod(kmc,N_mssf).eq.0) then
+   !       call config_S(iunit_conf,1)
+   !    end if
+   !    call flush()
+   ! end do
 
    call config_S(iunit_conf,3)
     
@@ -605,6 +643,74 @@ subroutine worm_k
 
    return
 end subroutine worm_k
+
+subroutine worm_T
+   use ranutil
+   use var_annealing, only : Ns,N_skt,S,St,Vt,Rt
+   implicit none
+   integer :: i,j
+   integer :: iworm, cont
+   integer :: v_0,ivk,isk
+   integer :: v_worm(N_skt), s_worm(Ns)
+   integer :: v_sequ(N_skt), s_sequ(N_skt)
+   integer :: pool(6)
+   
+   v_worm = 0
+   s_worm = 0
+   v_sequ = 0
+   s_sequ = 0
+
+   v_0 = int(N_skt*ranmar()/6.0d0)+1
+   !i=rand_int(0,100)
+   ivk = v_0
+   v_worm(ivk) = 1
+   v_sequ(1) = ivk
+   iworm = 0
+
+   do while (iworm <= N_skt)
+      iworm = iworm + 1
+      cont = 0
+      pool = 0
+
+      do i = 6*(ivk-1)+1,6*(ivk-1)+6
+         j = Vt(i)
+         if (Rt(i)*S(j) < 0.0d0) then
+            cont = cont + 1
+            pool(cont) = j
+         end if
+      end do
+
+      if (cont .ne. 0) then
+         isk = pool(int(cont*ranmar())+1)
+         s_worm(isk) = 1
+         s_sequ(iworm) = isk
+      else
+         return
+      end if
+
+      if (St(2*(isk-1)+1) .ne. ivk) then
+         ivk = St(2*(isk-1)+1)
+      else
+         ivk = St(2*(isk-1)+2)
+      end if
+
+      if (v_worm(ivk) .eq. 1) then
+         if (ivk .eq. v_0) then
+            call metropolis_loop(s_worm)
+            return
+         else
+            call corta_rabo(N_skt,ivk,s_worm,s_sequ,v_sequ)
+            call metropolis_loop(s_worm)
+            return
+         end if
+      else
+         v_worm(ivk) = 1
+         v_sequ(iworm+1) = ivk
+      end if
+   end do
+
+   return
+end subroutine worm_T
 
 subroutine corta_rabo(N,ivk,s_worm,s_sequ,v_sequ)
    use var_annealing, only : Ns
