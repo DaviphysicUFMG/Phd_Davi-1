@@ -147,7 +147,7 @@ end module ranutil
 
 module var_annealing
    real(8), parameter :: pi = 4.0d0*atan(1.0d0)
-   integer :: seed,N_sin
+   integer :: seed,N_sin,IniCon
    integer :: Ns,N_viz,N_mc,N_temp,N_skt,N_kago,N_tri,N_mssf
    integer, dimension(:), allocatable :: S,Nviz,jviz
    integer, dimension(:), allocatable :: Sk,Vk,Rk,St,Vt,Rt
@@ -155,9 +155,9 @@ module var_annealing
    real(8), dimension(:), allocatable :: rx,ry,mx,my
    real(8) :: Ti,Tf,dT
    real(8) :: E_tot,Temp,beta
-   character(600) :: dir1,dir2
+   character(600) :: dir1,dir2,isimula
 
-   integer, parameter :: iunit_conf = 10, iunit_en = 20
+   integer, parameter :: iunit_conf = 10, iunit_en = 20, iunit_fin = 30
 end module var_annealing
 
 subroutine inicial
@@ -194,7 +194,7 @@ end subroutine inicial
 subroutine ler_input(iunit)
    !use mtmod, only : getseed,sgrnd
    use ranutil, only : initrandom
-   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf,N_skt,N_kago,N_tri,N_mssf,N_sin!,seed
+   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf,N_skt,N_kago,N_tri,N_mssf,N_sin,IniCon
    implicit none
    integer, intent(in) :: iunit
    real(8) :: a
@@ -215,6 +215,7 @@ subroutine ler_input(iunit)
    read(iunit,*) N_kago
    read(iunit,*) N_tri
    read(iunit,*) N_mssf
+   read(iunit,*) IniCon
    close(iunit)
 
    !seed = getseed()
@@ -230,7 +231,8 @@ subroutine ler_input(iunit)
 end subroutine ler_input
 
 subroutine ler_config(iunit)
-   use var_annealing, only : Ns,S,rx,ry,mx,my
+   use ranutil
+   use var_annealing, only : Ns,S,rx,ry,mx,my,IniCon
    implicit none
    integer, intent(in) :: iunit
    integer :: i
@@ -246,8 +248,21 @@ subroutine ler_config(iunit)
    end do
    close(iunit)
 
-   S = 1
-
+   if (IniCon == 0) then      !Configuração Inicial com Tudo S = 1
+      S = 1
+   else if (IniCon == 1) then !Configuração Inicial Aleatória
+      S = 1
+      do i = 1,Ns
+         if (ranmar()<0.5d0) then
+            S(i) = -1
+         end if
+      end do
+   else if (IniCon == 2) then !Configuração Inicial Igual à Final Anterior
+      open(unit=iunit,file='ConFin.dat',status='old',action='read')
+      do i = 1,Ns
+         read(iunit,*) S(i)
+      end do
+   end if
    return
 end subroutine ler_config
 
@@ -365,6 +380,7 @@ subroutine diretorios
       write(dir2,"('Resultados/Annealing/Simula_',I4.4,'/')") i
       inquire(file=dir2,exist=direx)
    end do
+   write(isimula,"(I4.4)") i
    call system("mkdir " // trim(dir2))
 
    return
@@ -391,12 +407,13 @@ subroutine update(i,dE)
 end subroutine update
 
 subroutine Monte_Carlo(temps)
-   use var_annealing, only : N_mc,N_mssf,beta,iunit_conf,iunit_en,N_sin,N_kago,N_tri
+   use var_annealing, only : N_mc,N_mssf,beta,iunit_conf,iunit_en,N_sin,N_kago,N_tri,temp
    implicit none
    real(8), intent(in) :: temps
    integer :: imc,kmc,tmc,smc
 
    beta = 1.0d0/temps
+   temp = temps
 
    ! Termalização !
 
@@ -436,9 +453,10 @@ subroutine Monte_Carlo(temps)
       do tmc = 1,N_tri
          call worm_t
       end do
-      call config_S(iunit_conf,1)
+      call En_save(iunit_en,2)
       if (mod(imc,N_mssf).eq.0) then
          call config_S(iunit_conf,1)
+         call flush()
       end if
    end do
 
@@ -509,7 +527,7 @@ subroutine config_S(iunit,flag)
 
    if (flag == 0) then
       ! Inicia a configuração !
-      write(nome,"('config_temp_',f8.2,'.dat')") temp
+      write(nome,"('config_temp_',f8.4,'.dat')") temp
       open(unit=iunit,file=trim(dir2) // trim(nome))
 
       write(iunit,*) Ns,N_mc/N_mssf
@@ -535,12 +553,12 @@ subroutine config_S(iunit,flag)
 end subroutine config_S
 
 subroutine En_save(iunit,flag)
-   use var_annealing, only : Ns,N_mc,N_temp,temp,E_tot,dir2,S,mx,my
+   use var_annealing, only : Ns,N_mc,N_temp,temp,E_tot,dir2,S,mx,my,isimula
    implicit none
    integer, intent(in) :: iunit,flag
 
    if (flag == 0) then
-      open(unit=iunit,file=(trim(dir2) // 'energia.dat'))
+      open(unit=iunit,file=(trim(dir2) // 'energia' // trim(isimula) // '.dat'))
       write(iunit,*) Ns,N_mc,N_temp
    else if (flag == 1) then
       write(iunit,*) temp
@@ -554,6 +572,19 @@ subroutine En_save(iunit,flag)
    return
 end subroutine En_save
 
+subroutine Salva_Final
+   use var_annealing, only : Ns,S,iunit_fin
+   implicit none
+   integer :: i
+
+   open(unit=iunit_fin,file='ConFin.dat')
+   do i = 1,Ns
+      write(iunit_fin,*) S(i)
+   end do
+   close(iunit_fin)
+   return
+end subroutine Salva_Final
+
 subroutine Annealing
    use var_annealing, only : N_temp,Ti,dT,temp
    implicit none
@@ -566,7 +597,7 @@ subroutine Annealing
    do i_temp = 1,N_temp
       temps = Ti + (i_temp-1)*dT
       temp = temps
-      print*, 'Simualando em T=',temp
+      print*, 'Simulando em T=',temp
       call Monte_Carlo(temps)
    end do
 
@@ -776,8 +807,8 @@ end subroutine metropolis_loop
 program main
    
    call inicial
-
    call Annealing
+   call Salva_Final
 
 end program main
 
