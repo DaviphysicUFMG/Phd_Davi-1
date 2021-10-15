@@ -3,7 +3,7 @@ module var_inicial
     integer :: nx,ny,Ns,N_viz     !! ny deve ser par !!
     integer :: N_k,N_T,N_svt,N_svk
     integer, dimension(:), allocatable :: Nviz,jviz,cor
-    real(8) :: a,Lx,Ly,D,rc,theta
+    real(8) :: a,Lx,Ly,rc,theta
     real(8), parameter :: pi = 4.0d0*atan(1.0d0)
     real(8), dimension(:), allocatable :: rx,ry,mx,my,Aij
     real(8), dimension(:), allocatable :: xt,yt,xk,yk
@@ -22,8 +22,6 @@ subroutine parametros_iniciais
     print*, "--------------------------------"
     print*, "Entre com o tamanho da rede: nx e ny"
     read(*,*) nx,ny
-    print*, "Entre com o espaçamento de rede:"
-    read(*,*) a
     print*, "Entre com o raio de corte (indicado = 6.0d0):"
     read(*,*) rc
     print*, "--------------------------------"
@@ -32,6 +30,7 @@ subroutine parametros_iniciais
     read(*,*) contorno
     print*, "Ângulo de rotação do spin:"
     read(*,*) theta
+    a = 1.0d0
   
     rc = rc*a
     return
@@ -340,9 +339,6 @@ subroutine Aij_sem_contorno_x
         write(12,*) N_viz
     end do
 
-    print*, "Aij minimo",Aijmin
-    print*, "Aij máximo",Aijmax
-
     close(11)
     close(12)
 
@@ -543,6 +539,7 @@ subroutine output
     read(*,*) theta_h
 
     open(13,file=trim(dir2) // 'input.dat')
+    write(13,*) 1.0d0, "! Constante Dipolar"
     write(13,*) Ns,"   !Ns"
     write(13,*) N_viz,"   !N_viz"
     write(13,*) 11.25d0,"   !Hmax"
@@ -554,10 +551,11 @@ subroutine output
     write(13,*) 10.0,"    !Temperatura inicial"
     write(13,*) 0.5,"    !Temperatura final"
     write(13,*) N_svt
-    write(13,*) "    !N_sin"
-    write(13,*) "    !N_kago"
-    write(13,*) "    !N_tri"
-    write(13,*) "    !N_mssf"
+    write(13,*) 10, "    !N_sin"
+    write(13,*) 1,"    !N_kago"
+    write(13,*) 1,"    !N_tri"
+    write(13,*) 500,"    !N_mssf"
+    write(13,*) 1,"   S ; 1->Aleatorio, 2->Ultima config"
     close(13)
     if (N_svt .ne. N_svk) then
         print*, 'Erro em N_K e N_T',N_K,N_T

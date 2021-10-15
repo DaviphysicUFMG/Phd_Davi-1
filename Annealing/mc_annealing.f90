@@ -153,7 +153,7 @@ module var_annealing
    integer, dimension(:), allocatable :: Sk,Vk,Rk,St,Vt,Rt
    real(8), dimension(:), allocatable :: Aij,Bi
    real(8), dimension(:), allocatable :: rx,ry,mx,my
-   real(8) :: Ti,Tf,dT
+   real(8) :: Ti,Tf,dT,D
    real(8) :: E_tot,Temp,beta
    character(600) :: dir1,dir2,isimula
 
@@ -194,12 +194,13 @@ end subroutine inicial
 subroutine ler_input(iunit)
    !use mtmod, only : getseed,sgrnd
    use ranutil, only : initrandom
-   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf,N_skt,N_kago,N_tri,N_mssf,N_sin,IniCon
+   use var_annealing, only : Ns,N_viz,N_mc,N_temp,Ti,Tf,N_skt,N_kago,N_tri,N_mssf,N_sin,IniCon,D
    implicit none
    integer, intent(in) :: iunit
    real(8) :: a
 
    open(unit=iunit,file='input.dat',status='old',action='read')
+   read(iunit,*) D
    read(iunit,*) Ns
    read(iunit,*) N_viz
    read(iunit,*) a
@@ -267,7 +268,7 @@ subroutine ler_config(iunit)
 end subroutine ler_config
 
 subroutine ler_Aij(iunit)
-   use var_annealing, only : N_viz,Aij,jviz
+   use var_annealing, only : N_viz,Aij,jviz,D
    implicit none
    integer, intent(in) :: iunit
    integer :: i
@@ -278,6 +279,8 @@ subroutine ler_Aij(iunit)
       read(iunit,*) jviz(i),Aij(i)
    end do
    close(iunit)
+
+   Aij = Aij*D
 
    return
 end subroutine ler_Aij

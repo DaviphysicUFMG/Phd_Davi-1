@@ -325,7 +325,7 @@ module var_global
    real(8), dimension(:), allocatable :: x,y,mx,my
    real(8), dimension(:), allocatable :: Bx,By,theta,ModB
    integer,dimension(:,:),allocatable :: cortab
-   real(8) :: BMax,delB,ExtMax,theta_c
+   real(8) :: BMax,delB,ExtMax,theta_c,D
    character(600) :: dir1,dir2
    integer :: kk
 end module var_global
@@ -408,12 +408,13 @@ end subroutine inicial
 
 subroutine ler_input(unit_in)
    use mtmod, only : getseed,sgrnd
-   use var_global, only : Ns,N_viz,BMax,delB,ExtMax,theta_c
+   use var_global, only : Ns,N_viz,BMax,delB,ExtMax,theta_c,D
    implicit none
    integer, intent(in) :: unit_in
    integer :: seed
    
    open(unit=unit_in,file='input.dat',status='old',action='read')
+   read(unit_in,*) D
    read(unit_in,*) Ns
    read(unit_in,*) N_viz
    read(unit_in,*) BMax

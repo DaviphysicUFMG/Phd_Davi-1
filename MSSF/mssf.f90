@@ -13,17 +13,18 @@
 !---------------------------------------------------------!
 module var
     integer :: Ns,Nmssf
-    integer, parameter :: Nq = 101
+    integer :: Nq
     integer, dimension(:), allocatable :: S
     real(8), parameter :: pi = 4.0d0*atan(1.0d0) 
     real(8), dimension(:), allocatable :: rx,ry,mx,my
     real(8), dimension(:), allocatable :: qx,qy,qmod
     real(8), dimension(:), allocatable :: Ax,Ay,Bx,By
     real(8), dimension(:), allocatable :: Intensidade
+    real(8) :: qmax
 end module var
 
 subroutine ler_input
-    use var, only : Ns,Nmssf,rx,ry,mx,my,S
+    use var, only : Ns,Nmssf,rx,ry,mx,my,S,Nq,qmax
     implicit none
     integer :: i
 
@@ -39,25 +40,30 @@ subroutine ler_input
         read(10,*) rx(i),ry(i),mx(i),my(i)
     end do
 
+    print*, "Entre com o número de pontos pra dq"
+    read(*,*) Nq
+    print*, "Entre com o módulo máximo de q"
+    read(*,*) qmax
+
     return
 end subroutine ler_input
 
 subroutine inicia_q
-    use var, only : Nq,qx,qy,qmod,pi
+    use var, only : Nq,qx,qy,qmod,pi,qmax
     implicit none
     integer :: i,j,iq
     real(8) :: dq
 
     allocate(qx(Nq*Nq),qy(Nq*Nq),qmod(Nq*Nq))
 
-    dq = 6.0d0*pi/real(Nq-1,8)
+    dq = 2.0d0*qmax*pi/real(Nq-1,8)
     iq = 0
 
     do i = 1,Nq
         do j = 1,Nq
             iq = iq + 1
-            qx(iq) = -pi*3.d0 + (i-1)*dq
-            qy(iq) = -pi*3.d0 + (j-1)*dq
+            qx(iq) = -pi*qmax + (i-1)*dq
+            qy(iq) = -pi*qmax + (j-1)*dq
             if (qx(iq)==0.0d0 .and. qy(iq)==0.0d0) then
                 qmod(iq) = 1.0d0
             else
