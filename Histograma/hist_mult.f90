@@ -336,17 +336,20 @@ subroutine FS_interpol
 end subroutine FS_interpol
 
 subroutine momentos
-    use var_FS, only: N_temp,N_mc,beta,En!,Mx,My,M
+    use var_FS, only: N_temp,N_mc,beta,En,M!,Mx,My,M
     implicit none
     integer :: i,j,k
-    real(8), dimension(:), allocatable :: d1!,d2,d3,d4
+    real(8), dimension(:), allocatable :: d1,d4!,d2,d3,d4
     real(8) :: E,errE,Cvmed,errCv,bt
+    real(8) :: M1,errM,Sucmed,errSuc
 
-    allocate(d1(N_mc))!,d2(N_mc),d3(N_mc),d4(N_mc))
+    allocate(d1(N_mc),d4(N_mc))!,d2(N_mc),d3(N_mc),d4(N_mc))
 
     k = 0
-    open(3,file='Medias.dat')
+    open(3,file='Energia.dat')
+    open(4,file='Magnetizacao.dat')
     write(3,*) ' Temp ',' En ',' dE ',' Cv ', ' dCv '
+    write(4,*) ' Temp ',' M ',' dM ',' Suc ', ' dSuc '
     do i = 1,N_temp
         bt = beta(i)
         do j = 1,N_mc
@@ -354,10 +357,13 @@ subroutine momentos
             d1(j) = En(k)
             !d2(j) = Mx(k)
             !d3(j) = My(k)
-            !d4(j) = M(k)
+            d4(j) = M(k)
         end do
-        call jackknife(d1,E,errE,Cvmed,errCv,bt)
+        call jackknife1(d1,E,errE,Cvmed,errCv,bt)
+
+        call jackknife2(d4,M1,errM,Sucmed,errSuc,bt)
         write(3,*) 1.0d0/bt,E,errE,Cvmed,errCv
+        write(4,*) 1.0d0/bt,M1,errM,Sucmed,errSuc
     end do
     close(3)
 
@@ -365,7 +371,7 @@ subroutine momentos
 
 end subroutine momentos
 
-subroutine jackknife(d1,E,errE,Cvmed,errCv,bt)
+subroutine jackknife1(d1,E,errE,Cvmed,errCv,bt)
     use var_FS, only: Ns,N_mc
     implicit none
     real(8), dimension(N_mc), intent(in) :: d1
@@ -404,7 +410,48 @@ subroutine jackknife(d1,E,errE,Cvmed,errCv,bt)
     errCv = sqrt(errCv)
     errE = sqrt(errE)/real(Ns,8)
     return
-end subroutine jackknife
+end subroutine jackknife1
+
+subroutine jackknife2(d4,M,errM,Sucmed,errSuc,bt)
+    use var_FS, only: Ns,N_mc
+    implicit none
+    real(8), dimension(N_mc), intent(in) :: d4
+    real(8), intent(in) :: bt
+    real(8), intent(out) :: M,errM,Sucmed,errSuc
+    integer :: i,j,k
+    real(8), dimension(N_mc-1) :: dn
+    real(8) :: M1,M2,Sui,dM
+
+    call avevar(N_mc,d4,M,dM)
+    M2 = sum(d4*d4)/real(N_mc,8)
+    Sucmed = bt*(M2 - M**2)/real(Ns,8)
+
+    errM = 0.0d0
+    errSuc = 0.0d0
+    do i = 1,N_mc
+        k = 0
+        dn = 0.0d0
+        do j = 1,i-1
+            k = k + 1
+            dn(k) = d4(j)
+        end do
+        do j = i+1,N_mc
+            k = k + 1
+            dn(k) = d4(j)
+        end do
+        M1 = sum(dn)/real(N_mc-1,8)
+        M2 = sum(dn**2)/real(N_mc-1,8)
+
+        Sui = bt*(M2 - M1**2)/real(Ns,8)
+        errSuc = errSuc + (Sui - Sucmed)**2
+        errM = errM + (M1 - M)**2
+
+    end do
+    M = M/real(Ns,8)
+    errSuc = sqrt(errSuc)
+    errM = sqrt(errM)/real(Ns,8)
+    return
+end subroutine jackknife2
 
 ! subroutine bootstrap
 !     use ranutil

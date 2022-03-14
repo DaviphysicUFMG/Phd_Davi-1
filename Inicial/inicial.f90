@@ -5,7 +5,8 @@ module var_inicial
     integer, dimension(:), allocatable :: Nviz,jviz,cor
     real(8) :: a,Lx,Ly,rc,theta
     real(8), parameter :: pi = 4.0d0*atan(1.0d0)
-    real(8), dimension(:), allocatable :: rx,ry,mx,my,Aij
+    real(8), dimension(:), allocatable :: rx,ry,mx,my
+    real(8), dimension(:,:), allocatable :: Aij
     real(8), dimension(:), allocatable :: xt,yt,xk,yk
     character(200) :: dir1,dir2
 end module var_inicial
@@ -346,21 +347,21 @@ subroutine Aij_sem_contorno_x
 end subroutine Aij_sem_contorno_x
 
 subroutine Aij_com_contorno_x
-    use var_inicial, only : Ns,N_viz,rx,ry,mx,my,Lx,Ly,rc,dir2
+    use var_inicial, only : Ns,N_viz,rx,ry,mx,my,Lx,Ly,rc,dir2,Aij
     implicit none
     integer :: i,j,ni,nj,nc
-    real(8) :: x,y,dij,D1,D2,Aijmin,Aijmax,soma,Aij
+    real(8) :: x,y,dij,D1,D2,iAij
 
     open(11,file=trim(dir2) // 'Aij.dat')
     open(12,file=trim(dir2) // 'Nviz.dat')
 
+    allocate(Aij(Ns,Ns))
+    Aij = 0.0d0
     N_viz = 0
     nc = 3
-    !rc = 6.0d0*a
-    Aijmin = 10000000.0d0
-    Aijmax = -10000000.0d0
+
     do i = 1,Ns
-        soma = 0.0d0
+
         do ni = -nc,nc
             do nj = -nc,nc
                 do j = 1,Ns
@@ -373,23 +374,24 @@ subroutine Aij_com_contorno_x
                         y = y*dij
                         D1 = mx(i)*mx(j) + my(i)*my(j)
                         D2 = 3.0d0*(mx(i)*x + my(i)*y)*(mx(j)*x + my(j)*y)
-                        Aij = (D1 - D2)*dij**3
-                        soma = soma + Aij
-                        !Aij(N_viz) = (D1 - D2)*dij**3
-                        !jviz(N_viz) = j
-                        write(11,*) j,Aij
+                        iAij = (D1 - D2)*dij**3
+                        Aij(i,j) = Aij(i,j) + iAij
                     end if
                 end do
             end do
         end do
-        !Nviz(i) = N_viz
-        if (soma > Aijmax) Aijmax = soma
-        if (soma < Aijmin) Aijmin = soma
-        write(12,*) N_viz
     end do
 
-    print*, "Aij minimo",Aijmin
-    print*, "Aij máximo",Aijmax
+    N_viz = 0
+    do i = 1,Ns
+        do j = 1,Ns
+            if (AIJ(i,j) .ne. 0.0d0) then
+                N_viz = N_viz + 1
+                write(11,*) j,Aij(i,j)
+            end if
+        end do
+        write(12,*) N_viz
+    end do
 
     close(11)
     close(12)

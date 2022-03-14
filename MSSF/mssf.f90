@@ -186,8 +186,8 @@ subroutine output(k,soma)
     !Imax = maxval(Intensidade)
     !Intensidade = Intensidade / Imax
 
-    write(n1,"('output_',I3.3,'.dat')") k
-    write(n2,"('output_',I3.3,'.xyz')") k
+    write(n1,"('mssf',I3.3,'.dat')") k
+    write(n2,"('mssf',I3.3,'.xyz')") k
 
     open(20,file=trim(n1))
     open(30,file=trim(n2))
