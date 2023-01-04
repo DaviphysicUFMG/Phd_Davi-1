@@ -446,7 +446,7 @@ end module ranutil
   !    ...                                                          !
   !    integer :: i                                                 !
   !    real(rk) :: x,g                                              !
-  !    ...                                                          !                                           !
+  !    ...                                                          !                                           
   !    call initrandom()                                            !
   !    x=ranmar()                                                   !
   !    x=rand_real(25.,59.)                                         !
